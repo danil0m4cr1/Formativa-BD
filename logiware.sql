@@ -74,32 +74,6 @@ CREATE TABLE Fornecedor_Produto (
 		REFERENCES Produto(id)
 );
 
-/* Inserindo informações */
-INSERT INTO Fornecedor (id, nome, contato) VALUES
-(1, 'Fornecedor A', '11987654321'),
-(2, 'Fornecedor B', '21912345678'),
-(3, 'Fornecedor C', '31998765432');
-
-INSERT INTO Armazenamento (id, capTotal, capUsada) VALUES
-(1, 10000, 2500),
-(2, 8000, 3000),
-(3, 12000, 6000);
-
-INSERT INTO Produto (id, id_armazenamento, descricao, qntdEstoque) VALUES
-(1, 1, 'Notebook Dell Inspiron', 150),
-(2, 2, 'Mouse Logitech Wireless', 500),
-(3, 3, 'Monitor Samsung 24"', 200);
-
-INSERT INTO Pedido (id, data, status, id_fornecedor, id_produto) VALUES
-(1, '2025-05-01', 'Entregue', 1, 1),
-(2, '2025-05-03', 'Pendente', 2, 2),
-(3, '2025-05-05', 'Cancelado', 3, 3);
-
-INSERT INTO Transportadora (id, nome, contato, id_armazenamento) VALUES
-(1, 'Transporte Rápido', '11911112222', 1),
-(2, 'Carga Segura', '21933334444', 2),
-(3, 'Logística Sul', '31955556666', 3);
-
 /* Criação da procedure de atualização de estoque */
 DELIMITER $$
 CREATE PROCEDURE atualiza_estoque (
@@ -110,10 +84,6 @@ BEGIN
 	UPDATE Produto SET qntdEstoque = (qntdEstoque - p_retirada) WHERE id = p_id;
 END $$
 DELIMITER ;
-
-/* Exemplo da funcionalidade da procedure de atualização de estoque */
-CALL atualiza_estoque (1, 3);
-SELECT * FROM Produto;
 
 /* Criação do TRIGGER de monitoração do log de estoque */
 DELIMITER $$
@@ -126,10 +96,6 @@ BEGIN
 	END IF;
 END $$
 DELIMITER ;
-
-/* Exemplo de funcionamento do TRIGGER */
-UPDATE Produto SET qntdEstoque = 130 WHERE id = 1;
-SELECT * FROM log_estoque;
 
 /* Criação de PROCEDURE que atribui dinamicamente os locais de armazenamento */
 DELIMITER $$
@@ -163,21 +129,14 @@ BEGIN
 END $$
 DELIMITER ;
 
-/* Exemplo de funcionamento da PROCEDURE */
-CALL atribuir_armazenamento('Monitor Samsung 24', 200);
-
-/* PROCEDURE de monitoramento de espaço no armazenamento */
-DELIMITER $$
-CREATE PROCEDURE monitorar_espaco_armazenamento()
-BEGIN
-    SELECT id, capTotal, capUsada, (capUsada / capTotal) * 100 
-    AS porcentagem_usada
-    FROM Armazenamento;
-END $$
-DELIMITER ;
-
-/* Exemplo de funcionamento da PROCEDURE */
-CALL monitorar_espaco_armazenamento();
+/* Criação de VIEW que monitora o estoque dos produtos no armazenamento */
+CREATE VIEW vw_monitorar_armazenamento AS
+SELECT id, capTotal, capUsada,
+	CASE
+		WHEN capTotal >= capUsada THEN 'Estoque suficiente'
+        ELSE 'Estoque insuficiente'
+	END AS status_estoque
+FROM Armazenamento;
 
 /* Criação de PROCEDURE que mostra o registro detalhado de pedidos */
 DELIMITER $$
@@ -195,9 +154,6 @@ BEGIN
 END $$
 DELIMITER ;
 
-/* Exemplo do funcionamento da PROCEDURE */
-CALL pedido_detalhado(2);
-
 /* Controle de reposição dos fornecedores com seus respectivos produtos */
 DELIMITER $$
 CREATE PROCEDURE associar_fornecedor_produto(
@@ -212,6 +168,70 @@ BEGIN
 END $$
 DELIMITER ;
 
-/* Exemplo de funcionamento da PROCEDURE */
+/* Função para verificar o estoque total de produtos */
+DELIMITER $$
+CREATE FUNCTION fn_verificar_estoque()
+RETURNS INT
+READS SQL DATA
+BEGIN
+	DECLARE amt INT;
+    SELECT SUM(qntdEstoque) INTO amt FROM Produto;
+    RETURN amt;
+END $$
+DELIMITER ;
+
+/* Inserindo informações */
+/* Fornecedor */
+INSERT INTO Fornecedor (id, nome, contato) VALUES
+(1, 'Fornecedor A', '11987654321'),
+(2, 'Fornecedor B', '21912345678'),
+(3, 'Fornecedor C', '31998765432');
+
+/* Armazenamento */
+INSERT INTO Armazenamento (id, capTotal, capUsada) VALUES
+(1, 10000, 2500),
+(2, 8000, 3000),
+(3, 12000, 12001);
+
+/* Produto */
+INSERT INTO Produto (id, id_armazenamento, descricao, qntdEstoque) VALUES
+(1, 1, 'Notebook Dell Inspiron', 150),
+(2, 2, 'Mouse Logitech Wireless', 500),
+(3, 3, 'Monitor Samsung 24"', 200);
+
+/* Pedido */
+INSERT INTO Pedido (id, data, status, id_fornecedor, id_produto) VALUES
+(1, '2025-05-01', 'Entregue', 1, 1),
+(2, '2025-05-03', 'Pendente', 2, 2),
+(3, '2025-05-05', 'Cancelado', 3, 3);
+
+/* Transportadora */
+INSERT INTO Transportadora (id, nome, contato, id_armazenamento) VALUES
+(1, 'Transporte Rápido', '11911112222', 1),
+(2, 'Carga Segura', '21933334444', 2),
+(3, 'Logística Sul', '31955556666', 3);
+
+/* Exemplo da funcionalidade da procedure de atualização de estoque */
+CALL atualiza_estoque (1, 3);
+SELECT * FROM Produto;
+
+/* Exemplo de funcionamento do TRIGGER de monitoração de estoque */
+UPDATE Produto SET qntdEstoque = 130 WHERE id = 1;
+SELECT * FROM log_estoque;
+
+/* Exemplo de funcionamento da PROCEDURE de atribuição dinâmica de locais de armazenamento */
+CALL atribuir_armazenamento('Monitor Samsung 24', 200);
+
+/* VIEW de monitoramento de armazenamento */
+SELECT * FROM vw_monitorar_armazenamento;
+
+/* Exemplo do funcionamento da PROCEDURE que mostra o registro detalhado de pedidos */
+CALL pedido_detalhado(2);
+
+/* Exemplo de funcionamento da PROCEDURE de controle de reposição */
 CALL associar_fornecedor_produto(1, 2, '2025-05-01', 500);
 SELECT * FROM Fornecedor_Produto;
+
+/* Exemplo da função de verificar estoque de determinado produto */
+SELECT fn_verificar_estoque() FROM Produto;
+
